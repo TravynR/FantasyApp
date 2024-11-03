@@ -1,13 +1,22 @@
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
+import json
+import os
 
 # Initialize Firebase inside a function to ensure it's not globally initialized
 def init_firebase():
     if not firebase_admin._apps:
-        credentials_path = "fantasy-89e93-firebase-adminsdk-mok47-61639aeb61.json"
-        cred = credentials.Certificate(credentials_path)
-        firebase_admin.initialize_app(cred)
+        # Option 1: Load credentials from a local JSON file
+        # credentials_path = "fantasy-89e93-firebase-adminsdk-mok47-61639aeb61.json"
+
+        # Option 2: Load credentials from an environment variable
+        firebase_credentials = os.getenv("FIREBASE_CREDENTIALS")
+        if firebase_credentials:
+            cred = credentials.Certificate(json.loads(firebase_credentials))
+            firebase_admin.initialize_app(cred)
+        else:
+            raise ValueError("Firebase credentials not set in environment variables.")
     return firestore.client()
 
 # Retrieve players data from Firebase
@@ -18,6 +27,7 @@ def retrieve_players_data():
     docs = players_ref.stream()
     players = [doc.to_dict() for doc in docs]
     return players
+
 # Collect lineup from user input
 def collect_lineup(players):
     st.write("### Select Your Players:")
@@ -43,7 +53,7 @@ def available_players(players, best_player_ranking):
 
     matched_player = next((player for player in players if int(player["ranking"]) == best_player_ranking), None)
     if matched_player:
-        return [player for player in players if int(player["ranking"]) >= best_player_ranking]
+        return [player for player in players if int(player["ranking"]) <= best_player_ranking]
     else:
         st.error("No matching players found.")
         return []
@@ -73,19 +83,23 @@ def best_players(priority_list, available_players):
         for position in needed_positions:
             st.write(f"**Top players for position {position}:**")
             position_players = [player for player in available_players if position in player["positions"]]
-            position_players = sorted(position_players, key=lambda x: x['ranking'])[:3]
+            position_players = sorted(position_players, key=lambda x: x['ranking'], reverse=True)[:3]
             for player in position_players:
                 st.write(f"- {player['name']}")
     else:
-        st.write("You have filled all required positions. Here are the top available players:")
+        sorted_items = sorted(priority_list.items(), key=lambda item: item[1])
+        last_item = sorted_items[0]
+        position_to_fill = last_item[0]
+        best_players_for_position = [player for player in available_players if position_to_fill in player['positions']]
+        best_players_for_position = sorted(best_players_for_position, key=lambda x: x['ranking'])[:3]
+        st.write("You have filled all positions. Here are the top players available if you want to draft more:")
         # Sort all available players by ranking
-        all_available_players = sorted(available_players, key=lambda x: x['ranking'])[:5]
+        all_available_players = sorted(available_players, key=lambda x: x['ranking'])[:3]
         for player in all_available_players:
-            st.write(f"- {player['name']}")
+            st.write(f"- {player['name']} (Position: {player['positions']}, Ranking: {player['ranking']})")
 
 # Main function for Streamlit app
 def main():
-
     st.title("🏀 Fantasy Draft Helper")
     st.sidebar.header("Player Selection")
 
@@ -97,7 +111,7 @@ def main():
         
         if my_player_info:
             priority_list = count_positions(my_player_info)
-            best_player_ranking = st.sidebar.text_input("Enter the best available player ranking in your draft:(1-316)", "")
+            best_player_ranking = st.sidebar.text_input("Enter the best available player ranking:", "")
             
             if st.sidebar.button("Find Available Players"):
                 available_players_list = available_players(players, best_player_ranking)
