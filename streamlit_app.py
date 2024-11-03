@@ -5,7 +5,7 @@ from firebase_admin import credentials, firestore
 # Initialize Firebase inside a function to ensure it's not globally initialized
 def init_firebase():
     if not firebase_admin._apps:
-        credentials_path = r"C:\Users\travy\OneDrive\Documents\Projects\Fantasy\fantasy-89e93-firebase-adminsdk-mok47-61639aeb61.json"
+        credentials_path = "fantasy-89e93-firebase-adminsdk-mok47-61639aeb61.json"
         cred = credentials.Certificate(credentials_path)
         firebase_admin.initialize_app(cred)
     return firestore.client()
